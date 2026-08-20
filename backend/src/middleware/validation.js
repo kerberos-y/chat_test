@@ -9,6 +9,14 @@ const createSessionSchema = z.object({
 
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(100000),
+  // model – опціональний рядок, додаємо явно в схемі нижче або тут
+  // Для сумісності залишаємо базову схему, а в роутері розширюємо
+});
+
+// Ми розширюємо в роутері, але можемо додати і тут окрему схему.
+// Для зручності експортуємо обидві.
+const sendMessageWithModelSchema = sendMessageSchema.extend({
+  model: z.string().optional(),
 });
 
 const validate = (schema) => (req, res, next) => {
@@ -23,5 +31,6 @@ const validate = (schema) => (req, res, next) => {
 module.exports = {
   createSessionSchema,
   sendMessageSchema,
+  sendMessageWithModelSchema,
   validate,
 };

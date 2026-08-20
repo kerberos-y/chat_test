@@ -7,11 +7,10 @@ const { SessionNotFoundError, ValidationError } = require('../errors/customError
 const logger = require('../utils/logger');
 const NodeCache = require('node-cache');
 
-// Кеш для інвалідації (спільний з sessionService)
 const cache = new NodeCache({ stdTTL: 30 });
 
 class MessageService {
-  async sendMessage(sessionId, userId, content) {
+  async sendMessage(sessionId, userId, content, modelOverride = null) {
     if (!content || content.trim().length === 0) {
       throw new ValidationError('Message content cannot be empty');
     }
@@ -19,14 +18,23 @@ class MessageService {
     const session = await sessionRepo.findById(sessionId);
     if (!session) throw new SessionNotFoundError(sessionId);
 
+    let model = modelOverride || session.model || 'gpt-4o-mini';
+
+    // Перевірка підтримки моделі – якщо немає в pricing, кидаємо ValidationError (400)
+    try {
+      await pricingService.getPrice(model);
+    } catch (err) {
+      throw new ValidationError(`Model "${model}" is not supported or pricing not found.`);
+    }
+
     // 1. Зберігаємо повідомлення користувача
-    const userMessage = await messageRepo.create({
+    await messageRepo.create({
       sessionId,
       role: 'user',
       content: content.trim(),
     });
 
-    // 2. Автогенерація назви сесії (якщо ще немає)
+    // 2. Автогенерація назви (якщо немає)
     if (!session.title) {
       const allMessages = await messageRepo.findBySessionId(sessionId);
       if (allMessages.length === 1) {
@@ -37,12 +45,11 @@ class MessageService {
       }
     }
 
-    // 3. Будуємо контекст (включаючи щойно збережене повідомлення)
-    const model = session.model || 'gpt-4o-mini';
+    // 3. Будуємо контекст
     const systemPrompt = session.system_prompt;
     const context = await contextBuilder.buildContext(sessionId, systemPrompt, model);
 
-    logger.debug(`Context built with ${context.length} messages for session ${sessionId}`);
+    logger.debug(`Context built with ${context.length} messages for session ${sessionId} using model ${model}`);
 
     // 4. Викликаємо OpenAI
     const { content: assistantContent, usage } = await openaiClient.call(context, model);
@@ -50,7 +57,7 @@ class MessageService {
     // 5. Розраховуємо вартість
     const cost = await pricingService.calculateCost(model, usage.prompt_tokens, usage.completion_tokens);
 
-    // 6. Зберігаємо повідомлення асистента
+    // 6. Зберігаємо відповідь асистента
     const assistantMessage = await messageRepo.create({
       sessionId,
       role: 'assistant',
@@ -61,8 +68,7 @@ class MessageService {
       model,
     });
 
-    // Інвалідуємо кеш для цієї сесії та списку сесій
-    cache.del(`session_${sessionId}`);
+    // Інвалідуємо кеш списку сесій
     cache.del(`sessions_all`);
 
     return {

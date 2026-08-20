@@ -30,6 +30,15 @@ class MessageRepository {
     if (error) throw error;
     return data;
   }
+
+  // Новий метод для видалення всіх повідомлень сесії
+  async deleteBySessionId(sessionId) {
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('session_id', sessionId);
+    if (error) throw error;
+  }
 }
 
 module.exports = new MessageRepository();
