@@ -1,14 +1,10 @@
 import { defineConfig } from '@quasar/app-vite';
 
 export default defineConfig(() => ({
-  boot: [], // <-- прибираємо axios з boot
+  boot: [],
   css: ['app.scss'],
-  extras: ['material-icons'],
+  extras: [],
   build: {
-    target: {
-      browser: ['es2022', 'chrome100', 'safari15'],
-      node: 'node18'
-    },
     vueRouterMode: 'history',
   },
   devServer: {
@@ -17,12 +13,11 @@ export default defineConfig(() => ({
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
-        pathRewrite: { '^/api': '' }
-      }
-    }
+        pathRewrite: { '^/api': '' },
+      },
+    },
   },
   framework: {
-    config: {},
-    plugins: ['Notify']
-  }
+    plugins: ['Notify'],
+  },
 }));
